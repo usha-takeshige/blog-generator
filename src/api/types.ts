@@ -40,4 +40,69 @@ export interface DeepSeekResponse {
     completion_tokens: number;
     total_tokens: number;
   };
+}
+
+/**
+ * Supabaseデータベース型定義
+ */
+export interface Database {
+  public: {
+    Tables: {
+      users: {
+        Row: {
+          id: string;
+          name: string;
+          email: string;
+          department: string | null;
+          position: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          email: string;
+          department?: string | null;
+          position?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          email?: string;
+          department?: string | null;
+          position?: string | null;
+          created_at?: string;
+        };
+      };
+      articles: {
+        Row: {
+          id: string;
+          title: string;
+          content: string;
+          status: 'draft' | 'published';
+          author_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          content: string;
+          status: 'draft' | 'published';
+          author_id: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          content?: string;
+          status?: 'draft' | 'published';
+          author_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+    };
+  };
 } 

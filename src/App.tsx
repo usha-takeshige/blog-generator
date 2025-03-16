@@ -7,25 +7,33 @@ import CreateArticle from './pages/CreateArticle';
 import ManageArticles from './pages/ManageArticles';
 import ArticleDetail from './pages/ArticleDetail';
 import Layout from './components/Layout';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
-    <Router>
-      <Toaster position="top-right" />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="articles">
-            <Route path="create" element={<CreateArticle />} />
-            <Route path="manage" element={<ManageArticles />} />
-            <Route path=":id" element={<ArticleDetail />} />
-            <Route path=":id/edit" element={<CreateArticle />} />
+    <AuthProvider>
+      <Router>
+        <Toaster position="top-right" />
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="articles">
+              <Route path="create" element={<CreateArticle />} />
+              <Route path="manage" element={<ManageArticles />} />
+              <Route path=":id" element={<ArticleDetail />} />
+              <Route path=":id/edit" element={<CreateArticle />} />
+            </Route>
           </Route>
-        </Route>
-      </Routes>
-    </Router>
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 

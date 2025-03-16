@@ -1,14 +1,27 @@
 import React from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { BookOpen, LogOut, User } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'react-hot-toast';
 
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
 
-  const handleLogout = () => {
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast.success('ログアウトしました');
+      navigate('/login');
+    } catch (error) {
+      console.error('ログアウトエラー:', error);
+      toast.error('ログアウトに失敗しました');
+    }
   };
+
+  // ユーザー名を取得（メタデータから）
+  const userName = user?.user_metadata?.name || 'ユーザー';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -24,11 +37,12 @@ export default function Layout() {
               <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
                 <User className="w-5 h-5 text-gray-600" />
               </div>
-              <span className="text-sm text-gray-700">John Doe</span>
+              <span className="text-sm text-gray-700">{userName}</span>
             </div>
             <button
               onClick={handleLogout}
               className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+              title="ログアウト"
             >
               <LogOut className="w-5 h-5" />
             </button>
