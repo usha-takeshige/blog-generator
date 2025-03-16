@@ -7,8 +7,9 @@ const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
 /**
  * DeepSeek APIのキー（環境変数から取得）
+ * フロントエンド環境（Vite）では import.meta.env を使用
  */
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
+const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY;
 
 /**
  * DeepSeek APIを使用して記事構成を生成する関数

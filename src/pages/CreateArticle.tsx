@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Wand2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
+import { generateArticleStructure } from '../api';
 
 interface Section {
   title: string;
@@ -56,25 +57,23 @@ export default function CreateArticle() {
 
   const handleGenerateStructure = async () => {
     if (!theme.trim()) {
-      toast.error('Please enter a theme first');
+      toast.error('テーマを入力してください');
       return;
     }
 
     setIsGenerating(true);
-    // Simulated AI response for MVP
-    setTimeout(() => {
-      const suggestedSections = [
-        { title: 'Introduction', content: '' },
-        { title: 'Key Concepts', content: '' },
-        { title: 'Best Practices', content: '' },
-        { title: 'Common Challenges', content: '' },
-        { title: 'Conclusion', content: '' }
-      ];
+    try {
+      // DeepSeek APIを呼び出す
+      const suggestedSections = await generateArticleStructure(theme);
       setSections(suggestedSections);
       setCurrentSection(suggestedSections[0]);
+      toast.success('構成が生成されました');
+    } catch (error) {
+      console.error('Error generating structure:', error);
+      toast.error('構成の生成に失敗しました');
+    } finally {
       setIsGenerating(false);
-      toast.success('Structure generated successfully');
-    }, 1500);
+    }
   };
 
   const handleSaveSection = () => {
