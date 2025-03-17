@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import CreateArticle from './pages/CreateArticle';
 import ManageArticles from './pages/ManageArticles';
 import ArticleDetail from './pages/ArticleDetail';
+import SupabaseDemo from './pages/SupabaseDemo';
 import Layout from './components/Layout';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -30,6 +31,7 @@ function App() {
               <Route path=":id" element={<ArticleDetail />} />
               <Route path=":id/edit" element={<CreateArticle />} />
             </Route>
+            <Route path="supabase-demo" element={<SupabaseDemo />} />
           </Route>
         </Routes>
       </Router>

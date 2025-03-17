@@ -3,25 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Wand2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
-import { generateArticleStructure } from '../api';
+import { generateArticleStructure, createArticle, getArticleById, updateArticle } from '../api';
 
 interface Section {
   title: string;
   content: string;
+  theme?: string;
 }
-
-const MOCK_ARTICLE = {
-  id: '1',
-  title: 'Getting Started with React',
-  theme: 'React Fundamentals',
-  sections: [
-    { title: 'Introduction', content: '# Getting Started with React\n\nReact is a popular JavaScript library for building user interfaces.' },
-    { title: 'Key Concepts', content: '## Components\nComponents are the building blocks of React applications.\n\n## Props\nProps are read-only components.' },
-    { title: 'Best Practices', content: '1. Keep components small\n2. Use functional components\n3. Follow naming conventions' },
-    { title: 'Common Challenges', content: '- State management\n- Performance optimization\n- Testing strategies' },
-    { title: 'Conclusion', content: 'React provides a powerful way to build modern web applications.' }
-  ]
-};
 
 export default function CreateArticle() {
   const navigate = useNavigate();
@@ -33,21 +21,46 @@ export default function CreateArticle() {
   const [isPreview, setIsPreview] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoading, setIsLoading] = useState(!!id);
+  const [isSaving, setIsSaving] = useState(false);
+  const [originalArticle, setOriginalArticle] = useState<any>(null);
 
   useEffect(() => {
     if (id) {
-      // Simulate API call for editing existing article
+      // 既存の記事を編集する場合
       const fetchArticle = async () => {
+        setIsLoading(true);
         try {
-          await new Promise(resolve => setTimeout(resolve, 500));
-          setTheme(MOCK_ARTICLE.theme);
-          setTitle(MOCK_ARTICLE.title);
-          setSections(MOCK_ARTICLE.sections);
-          setCurrentSection(MOCK_ARTICLE.sections[0]);
+          const article = await getArticleById(id);
+          setOriginalArticle(article);
+          setTitle(article.title);
+          
+          // 記事の内容をセクションに分割
+          try {
+            const parsedContent = JSON.parse(article.content);
+            if (Array.isArray(parsedContent) && parsedContent.length > 0) {
+              setSections(parsedContent);
+              setCurrentSection(parsedContent[0]);
+              // テーマ情報を取得（最初のセクションに保存されている場合）
+              if (parsedContent[0].theme) {
+                setTheme(parsedContent[0].theme);
+              }
+            } else {
+              // JSONだが配列でない場合
+              const newSection = { title: 'Content', content: article.content };
+              setSections([newSection]);
+              setCurrentSection(newSection);
+            }
+          } catch (parseError) {
+            // JSONでない場合は単一のセクションとして扱う
+            const newSection = { title: 'Content', content: article.content };
+            setSections([newSection]);
+            setCurrentSection(newSection);
+          }
+          
           setIsLoading(false);
         } catch (error) {
-          console.error('Error fetching article:', error);
-          toast.error('Failed to load article');
+          console.error('記事の取得に失敗しました:', error);
+          toast.error('記事の読み込みに失敗しました');
           navigate('/articles/manage');
         }
       };
@@ -69,7 +82,7 @@ export default function CreateArticle() {
       setCurrentSection(suggestedSections[0]);
       toast.success('構成が生成されました');
     } catch (error) {
-      console.error('Error generating structure:', error);
+      console.error('構成の生成に失敗しました:', error);
       toast.error('構成の生成に失敗しました');
     } finally {
       setIsGenerating(false);
@@ -82,22 +95,62 @@ export default function CreateArticle() {
     setSections(prev => prev.map(section => 
       section.title === currentSection.title ? currentSection : section
     ));
-    toast.success('Section saved');
+    toast.success('セクションを保存しました');
   };
 
-  const handlePublish = () => {
+  const handlePublish = async (status: 'draft' | 'published' = 'draft') => {
     if (!title.trim()) {
-      toast.error('Please enter a title');
+      toast.error('タイトルを入力してください');
+      return;
+    }
+
+    if (sections.length === 0) {
+      toast.error('記事の内容を入力してください');
       return;
     }
 
     if (sections.some(section => !section.content.trim())) {
-      toast.error('Please fill in all sections');
+      toast.error('すべてのセクションに内容を入力してください');
       return;
     }
 
-    toast.success(id ? 'Article updated successfully' : 'Article saved as draft');
-    navigate('/dashboard');
+    setIsSaving(true);
+    try {
+      // セクションにテーマ情報を追加
+      const sectionsWithTheme = sections.map((section, index) => 
+        index === 0 ? { ...section, theme } : section
+      );
+      
+      // セクションをJSON文字列に変換
+      const content = JSON.stringify(sectionsWithTheme);
+      
+      if (id) {
+        // 既存の記事を更新
+        await updateArticle(id, {
+          title,
+          content,
+          status: status || originalArticle?.status || 'draft'
+        });
+        toast.success(status === 'published' ? '記事を公開しました' : '記事を下書きとして保存しました');
+        // 編集後は記事詳細ページに戻る
+        navigate(`/articles/${id}`);
+      } else {
+        // 新しい記事を作成
+        const newArticle = await createArticle({
+          title,
+          content,
+          status
+        });
+        toast.success(status === 'published' ? '記事を公開しました' : '記事を下書きとして保存しました');
+        // 作成後は記事管理ページに移動
+        navigate('/articles/manage');
+      }
+    } catch (error) {
+      console.error('記事の保存に失敗しました:', error);
+      toast.error('記事の保存に失敗しました');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (isLoading) {
@@ -116,21 +169,29 @@ export default function CreateArticle() {
           className="inline-flex items-center text-gray-600 hover:text-gray-900"
         >
           <ArrowLeft className="w-5 h-5 mr-2" />
-          Back
+          戻る
         </button>
         <div className="space-x-4">
           <button
             onClick={handleSaveSection}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            disabled={!currentSection}
+            disabled={!currentSection || isSaving}
           >
-            Save Section
+            セクションを保存
           </button>
           <button
-            onClick={handlePublish}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            onClick={() => handlePublish('draft')}
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+            disabled={isSaving}
           >
-            {id ? 'Update' : 'Publish'}
+            {isSaving ? '保存中...' : '下書き保存'}
+          </button>
+          <button
+            onClick={() => handlePublish('published')}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            disabled={isSaving}
+          >
+            {isSaving ? '公開中...' : '公開する'}
           </button>
         </div>
       </div>
@@ -139,96 +200,93 @@ export default function CreateArticle() {
         <div className="space-y-6">
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">
-              Theme
+              テーマ
             </label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={theme}
                 onChange={(e) => setTheme(e.target.value)}
-                placeholder="Enter the main theme of your article"
+                placeholder="記事のメインテーマを入力してください"
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               />
               <button
                 onClick={handleGenerateStructure}
-                disabled={isGenerating || !theme.trim()}
+                disabled={isGenerating || !theme.trim() || isSaving}
                 className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Wand2 className="w-5 h-5 mr-2" />
-                Generate
+                生成
               </button>
             </div>
           </div>
 
-          {sections.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <label className="block text-sm font-medium text-gray-700">
-                  Article Title
-                </label>
-                <button
-                  onClick={() => setIsPreview(!isPreview)}
-                  className="text-sm text-indigo-600 hover:text-indigo-700"
-                >
-                  {isPreview ? 'Edit' : 'Preview'}
-                </button>
-              </div>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter article title"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-              
-              <div className="space-y-4">
-                <label className="block text-sm font-medium text-gray-700">
-                  Sections
-                </label>
-                <div className="flex gap-2 flex-wrap">
-                  {sections.map((section) => (
-                    <button
-                      key={section.title}
-                      onClick={() => setCurrentSection(section)}
-                      className={`px-3 py-1 rounded-full text-sm ${
-                        currentSection?.title === section.title
-                          ? 'bg-indigo-100 text-indigo-700'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {section.title}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {currentSection && (
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    {currentSection.title}
-                  </label>
-                  <textarea
-                    value={currentSection.content}
-                    onChange={(e) =>
-                      setCurrentSection({ ...currentSection, content: e.target.value })
-                    }
-                    placeholder={`Write your content for ${currentSection.title}...`}
-                    rows={10}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-              )}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <label className="block text-sm font-medium text-gray-700">
+                記事タイトル
+              </label>
+              <button
+                onClick={() => setIsPreview(!isPreview)}
+                className="text-sm text-indigo-600 hover:text-indigo-700"
+              >
+                {isPreview ? '編集' : 'プレビュー'}
+              </button>
             </div>
-          )}
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="記事のタイトルを入力してください"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+            
+            <div className="space-y-4">
+              <label className="block text-sm font-medium text-gray-700">
+                セクション
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {sections.map((section) => (
+                  <button
+                    key={section.title}
+                    onClick={() => setCurrentSection(section)}
+                    className={`px-3 py-1 rounded-full text-sm ${
+                      currentSection?.title === section.title
+                        ? 'bg-indigo-100 text-indigo-700'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {section.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {currentSection && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  {currentSection.title}
+                </label>
+                <textarea
+                  value={currentSection.content}
+                  onChange={(e) =>
+                    setCurrentSection({ ...currentSection, content: e.target.value })
+                  }
+                  placeholder={`${currentSection.title}の内容を入力してください...`}
+                  rows={10}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {isPreview && (
           <div className="bg-white rounded-xl shadow-sm p-6 prose prose-indigo max-w-none">
-            <h1>{title || 'Untitled Article'}</h1>
+            <h1>{title || '無題の記事'}</h1>
             {sections.map((section) => (
               <div key={section.title}>
-                <h2>{section.title}</h2>
-                <ReactMarkdown>{section.content || '*No content yet*'}</ReactMarkdown>
+                <ReactMarkdown>{`## ${section.title}\n\n${section.content || '*内容がまだありません*'}`}</ReactMarkdown>
               </div>
             ))}
           </div>

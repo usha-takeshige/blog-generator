@@ -2,76 +2,53 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Edit2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { getArticleById, Article } from '../api';
+import { toast } from 'react-hot-toast';
+import { useAuth } from '../contexts/AuthContext';
 
-interface Article {
-  id: string;
+interface Section {
   title: string;
   content: string;
-  status: 'draft' | 'published';
-  authorName: string;
-  createdAt: string;
-  updatedAt: string;
+  theme?: string;
 }
-
-const MOCK_ARTICLE: Article = {
-  id: '1',
-  title: 'Getting Started with React',
-  content: `
-# Getting Started with React
-
-React is a popular JavaScript library for building user interfaces. This guide will help you understand the basics.
-
-## Key Concepts
-
-### Components
-Components are the building blocks of React applications. They let you split the UI into independent, reusable pieces.
-
-### Props
-Props are read-only components. They are immutable and help make your components reusable.
-
-### State
-State is a way to store data that can change over time within a component.
-
-## Best Practices
-
-1. Keep components small and focused
-2. Use functional components with hooks
-3. Maintain proper component hierarchy
-4. Follow React naming conventions
-
-## Common Challenges
-
-- State management in large applications
-- Component lifecycle understanding
-- Performance optimization
-- Testing strategies
-
-## Conclusion
-
-React provides a powerful and flexible way to build modern web applications. With these fundamentals, you're ready to start your React journey.
-`,
-  status: 'published',
-  authorName: 'John Doe',
-  createdAt: '2024-03-20T10:00:00Z',
-  updatedAt: '2024-03-20T15:30:00Z'
-};
 
 export default function ArticleDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [article, setArticle] = useState<Article | null>(null);
+  const [sections, setSections] = useState<Section[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate API call
     const fetchArticle = async () => {
+      if (!id) return;
+      
       setIsLoading(true);
+      setError(null);
+      
       try {
-        // In a real application, this would be an API call
-        await new Promise(resolve => setTimeout(resolve, 500));
-        setArticle(MOCK_ARTICLE);
-      } catch (error) {
-        console.error('Error fetching article:', error);
+        const data = await getArticleById(id);
+        setArticle(data);
+        
+        // 記事の内容をセクションに分割
+        try {
+          const parsedContent = JSON.parse(data.content);
+          if (Array.isArray(parsedContent) && parsedContent.length > 0) {
+            setSections(parsedContent);
+          } else {
+            // JSONだが配列でない場合
+            setSections([{ title: 'Content', content: data.content }]);
+          }
+        } catch (parseError) {
+          // JSONでない場合は単一のセクションとして扱う
+          setSections([{ title: 'Content', content: data.content }]);
+        }
+      } catch (err) {
+        console.error('記事の取得に失敗しました:', err);
+        setError('記事の取得に失敗しました');
+        toast.error('記事の取得に失敗しました');
       } finally {
         setIsLoading(false);
       }
@@ -88,20 +65,25 @@ export default function ArticleDetail() {
     );
   }
 
-  if (!article) {
+  if (error || !article) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-4">Article not found</h2>
+        <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+          {error || '記事が見つかりませんでした'}
+        </h2>
         <button
           onClick={() => navigate(-1)}
           className="inline-flex items-center text-indigo-600 hover:text-indigo-700"
         >
           <ArrowLeft className="w-5 h-5 mr-2" />
-          Go back
+          戻る
         </button>
       </div>
     );
   }
+
+  // 記事の著者かどうかを確認
+  const isAuthor = user?.id === article.author_id;
 
   return (
     <div className="space-y-6">
@@ -111,15 +93,17 @@ export default function ArticleDetail() {
           className="inline-flex items-center text-gray-600 hover:text-gray-900"
         >
           <ArrowLeft className="w-5 h-5 mr-2" />
-          Back
+          戻る
         </button>
-        <Link
-          to={`/articles/${id}/edit`}
-          className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-        >
-          <Edit2 className="w-5 h-5 mr-2" />
-          Edit Article
-        </Link>
+        {isAuthor && (
+          <Link
+            to={`/articles/${id}/edit`}
+            className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <Edit2 className="w-5 h-5 mr-2" />
+            記事を編集
+          </Link>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
@@ -127,25 +111,32 @@ export default function ArticleDetail() {
           <h1 className="text-3xl font-bold text-gray-900 mb-4">{article.title}</h1>
           
           <div className="flex items-center space-x-4 text-sm text-gray-500 mb-8">
-            <span>By {article.authorName}</span>
+            <span>ステータス: {article.status === 'published' ? '公開済み' : '下書き'}</span>
             <span>•</span>
-            <span>Published {new Date(article.createdAt).toLocaleDateString()}</span>
+            <span>作成日: {new Date(article.created_at).toLocaleDateString()}</span>
             <span>•</span>
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
               article.status === 'published'
                 ? 'bg-green-100 text-green-800'
                 : 'bg-yellow-100 text-yellow-800'
             }`}>
-              {article.status.charAt(0).toUpperCase() + article.status.slice(1)}
+              {article.status === 'published' ? '公開済み' : '下書き'}
             </span>
           </div>
 
           <div className="prose prose-indigo max-w-none">
-            <ReactMarkdown>{article.content}</ReactMarkdown>
+            {sections.map((section, index) => (
+              <div key={index} className="mb-6">
+                {section.title !== 'Content' && (
+                  <h2 className="text-xl font-semibold mb-2">{section.title}</h2>
+                )}
+                <ReactMarkdown>{section.content}</ReactMarkdown>
+              </div>
+            ))}
           </div>
 
           <div className="mt-8 pt-8 border-t border-gray-200 text-sm text-gray-500">
-            Last updated: {new Date(article.updatedAt).toLocaleString()}
+            最終更新日: {new Date(article.updated_at).toLocaleString()}
           </div>
         </div>
       </div>
