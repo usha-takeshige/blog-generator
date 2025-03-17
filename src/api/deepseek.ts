@@ -32,12 +32,12 @@ export async function generateArticleStructure(theme: string): Promise<Section[]
       messages: [
         {
           role: "system",
-          content: "あなたはブログ記事の構成を提案するアシスタントです。JSON形式で回答してください。"
+          content: "あなたはブログ記事の構成を提案するアシスタントです。JSON形式で回答してください。Markdownのコードブロック記法は使用せず、純粋なJSONのみを返してください。"
         },
         {
           role: "user",
           content: `テーマ「${theme}」に関する記事の構成（見出しとセクション）を5つ程度提案してください。
-          レスポンスは以下のJSON形式で返してください:
+          レスポンスは以下のJSON形式で返してください（Markdownのコードブロック記法は使用しないでください）:
           [
             {"title": "セクションタイトル1", "content": ""},
             {"title": "セクションタイトル2", "content": ""},
